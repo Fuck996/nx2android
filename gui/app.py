@@ -8,7 +8,7 @@
 import html, os, subprocess, sys, time
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QLibraryInfo, QLocale, QSize, Qt, QTimer, QTranslator, QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                                QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSpinBox, QSplitter, QStyle, QTableWidget, QTableWidgetItem,
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, 
 
 from porter import config
 from gui.runner import Porter, call_json
+from gui.i18n import tr, event_text, configure_ui_language
 
 LANGUAGES = [('', 'English (default)'), ('ja', 'Japanese'), ('fr', 'French'), ('de', 'German'), ('it', 'Italian'), ('es', 'Spanish'), ('nl', 'Dutch'), ('pt', 'Portuguese'),
              ('ru', 'Russian'), ('ko', 'Korean'), ('zh-Hans', 'Chinese (Simplified)'), ('zh-Hant', 'Chinese (Traditional)')]
@@ -34,7 +35,7 @@ def size(b):
 
 def path_row(edit, pick):   # a line edit with a Browse button
     w = QWidget(); h = QHBoxLayout(w); h.setContentsMargins(0, 0, 0, 0); h.setAlignment(Qt.AlignTop)
-    b = QPushButton('Browse…'); b.clicked.connect(pick)
+    b = QPushButton(tr('Browse…')); b.clicked.connect(pick)
     h.addWidget(edit, 1); h.addWidget(b)
     return w
 
@@ -61,8 +62,8 @@ class FitScroll(QScrollArea):
 def sd_warning():   # right of the Port tab's "Game data on the SD card" box
     w = QWidget(); h = QHBoxLayout(w); h.setContentsMargins(0, 0, 0, 0); h.setSpacing(4)
     i = QLabel(); i.setPixmap(QApplication.style().standardIcon(QStyle.SP_MessageBoxWarning).pixmap(16, 16))
-    t = QLabel('<b>Slow</b> to install and uninstall'); t.setTextFormat(Qt.RichText)
-    w.setToolTip('Installing writes many GB to the SD card and uninstalling deletes them again; internal storage is much faster.')
+    t = QLabel(tr('<b>Slow</b> to install and uninstall')); t.setTextFormat(Qt.RichText)
+    w.setToolTip(tr('Installing writes many GB to the SD card and uninstalling deletes them again; internal storage is much faster.'))
     h.addWidget(i); h.addWidget(t); w.setVisible(False)
     return w
 
@@ -74,66 +75,66 @@ class PortTab(QWidget):
         self.porter = Porter(self); self.porter.event.connect(self.on_event); self.porter.finished.connect(self.on_finished)
         v = QVBoxLayout(self)
 
-        self.folder = QLineEdit(); self.folder.setPlaceholderText('the folder with the game\'s NSP / XCI / NSZ / XCZ files (base game, update, DLC)')
+        self.folder = QLineEdit(); self.folder.setPlaceholderText(tr('the folder with the game\'s NSP / XCI / NSZ / XCZ files (base game, update, DLC)'))
         self.folder.editingFinished.connect(self.inspect)
-        g = QGroupBox('Game'); gl = QVBoxLayout(g)
+        g = QGroupBox(tr('Game')); gl = QVBoxLayout(g)
         gl.addWidget(path_row(self.folder, self.pick_folder))
-        self.card = QLabel('Choose a game folder.'); self.card.setWordWrap(True); self.card.setTextFormat(Qt.RichText); self.card.setMinimumHeight(60)
+        self.card = QLabel(tr('Choose a game folder.')); self.card.setWordWrap(True); self.card.setTextFormat(Qt.RichText); self.card.setMinimumHeight(60)
         gl.addWidget(self.card)
         v.addWidget(g)
 
-        o = QGroupBox('Options'); inner = QWidget(); f = QFormLayout(inner)   # the title stays put; only the rows scroll
-        self.app_name = QLineEdit(); self.app_name.setPlaceholderText('the game\'s name')
+        o = QGroupBox(tr('Options')); inner = QWidget(); f = QFormLayout(inner)   # the title stays put; only the rows scroll
+        self.app_name = QLineEdit(); self.app_name.setPlaceholderText(tr('the game\'s name'))
         self.language = QComboBox()
-        for code, name in LANGUAGES: self.language.addItem(name, code)
-        self.out = QLineEdit(); self.out.setPlaceholderText('the game folder')
-        self.install = QCheckBox('Install on the device when done')
+        for code, name in LANGUAGES: self.language.addItem(tr(name), code)
+        self.out = QLineEdit(); self.out.setPlaceholderText(tr('the game folder'))
+        self.install = QCheckBox(tr('Install on the device when done'))
         self.device = QComboBox(); self.device.setMinimumWidth(260)
-        refresh = QPushButton('Refresh'); refresh.clicked.connect(self.refresh_devices)
+        refresh = QPushButton(tr('Refresh')); refresh.clicked.connect(self.refresh_devices)
         dev = QWidget(); dh = QHBoxLayout(dev); dh.setContentsMargins(0, 0, 0, 0); dh.addWidget(self.install); dh.addWidget(self.device, 1); dh.addWidget(refresh)
-        self.replace_signer = QCheckBox('Replace an app of the same package signed with another key (uninstalls it first: its saves are deleted)')
-        self.romfs_at = QLineEdit(); self.romfs_at.setPlaceholderText('as the device has it (an earlier install\'s folder, else the app\'s files folder)')   # porter install --romfs-at
-        romfs_tip = ('A folder on the device that already holds this game version\'s RomFS (a dump an emulator reads, e.g. /sdcard/<dump>/romfs),\n'
+        self.replace_signer = QCheckBox(tr('Replace an app of the same package signed with another key (uninstalls it first: its saves are deleted)'))
+        self.romfs_at = QLineEdit(); self.romfs_at.setPlaceholderText(tr('as the device has it (an earlier install\'s folder, else the app\'s files folder)'))   # porter install --romfs-at
+        romfs_tip = (tr('A folder on the device that already holds this game version\'s RomFS (a dump an emulator reads, e.g. /sdcard/<dump>/romfs),\n'
                      'which the app then reads instead of a copy in its own files folder (7 to 18 GB less). The installer checks the folder and gives the app All files access.\n'
-                     'Empty: as the device has it (an SD install\'s card folder too). "app": the RomFS back in the app\'s files folder (from the SD card too). Install only: the port itself does not change.')
-        self.romfs_push = QCheckBox('Push the game\'s RomFS into that folder (an empty folder, or one of this game: files are added, never deleted)')   # porter install --romfs-push
-        self.romfs_sd = QCheckBox('Game data on the SD card (the app itself stays in internal storage; the bulky RomFS is stored on the SD card)')   # porter install --romfs-at sd
+                     'Empty: as the device has it (an SD install\'s card folder too). "app": the RomFS back in the app\'s files folder (from the SD card too). Install only: the port itself does not change.'))
+        self.romfs_push = QCheckBox(tr('Push the game\'s RomFS into that folder (an empty folder, or one of this game: files are added, never deleted)'))   # porter install --romfs-push
+        self.romfs_sd = QCheckBox(tr('Game data on the SD card (the app itself stays in internal storage; the bulky RomFS is stored on the SD card)'))   # porter install --romfs-at sd
         self.romfs_sd_warn = sd_warning()   # shown while the SD checkbox is on
         self.romfs_sd.toggled.connect(lambda on: (self.romfs_at.setEnabled(not on), self.romfs_push.setEnabled(not on), self.romfs_sd_warn.setVisible(on)))
         romfs = with_info(self.romfs_at, romfs_tip); romfs.layout().setStretch(0, 1)
-        self.package = QLineEdit(); self.package.setPlaceholderText('the profile\'s package')   # porter port --package: a test install beside the player's other build
-        self.package.setToolTip('Install under another package than the profile\'s (org.nx2a.<game>.test), beside your other build of the game.\n'
-                                'An app of another package has its own saves.')
-        self.fps60 = QCheckBox('60 fps (the profile\'s own frame-rate cap, else the community\'s FPSLocker-Warehouse config of the game\'s build, fetched from GitHub)')
-        self.touch = QCheckBox('Touch game: start with the on-screen gamepad hidden, so every touch but the menu button\'s goes to the game (the pause menu shows it again)')   # porter port --touch
-        self.no_menu_button = QCheckBox('No menu button: hide the on-screen menu button; the Back gesture or key, or a controller\'s Home/Menu key, opens the menu (port again to show it)')   # porter port --no-menu-button
-        self.driver = QLineEdit(); self.driver.setPlaceholderText('the device\'s own')   # porter port --vulkan-driver
-        self.driver.setToolTip('A Vulkan driver library (.so) to pack in the APK and use instead of the device\'s own,\n'
+        self.package = QLineEdit(); self.package.setPlaceholderText(tr('the profile\'s package'))   # porter port --package: a test install beside the player's other build
+        self.package.setToolTip(tr('Install under another package than the profile\'s (org.nx2a.<game>.test), beside your other build of the game.\n'
+                                'An app of another package has its own saves.'))
+        self.fps60 = QCheckBox(tr('60 fps (the profile\'s own frame-rate cap, else the community\'s FPSLocker-Warehouse config of the game\'s build, fetched from GitHub)'))
+        self.touch = QCheckBox(tr('Touch game: start with the on-screen gamepad hidden, so every touch but the menu button\'s goes to the game (the pause menu shows it again)'))   # porter port --touch
+        self.no_menu_button = QCheckBox(tr('No menu button: hide the on-screen menu button; the Back gesture or key, or a controller\'s Home/Menu key, opens the menu (port again to show it)'))   # porter port --no-menu-button
+        self.driver = QLineEdit(); self.driver.setPlaceholderText(tr('the device\'s own'))   # porter port --vulkan-driver
+        self.driver.setToolTip(tr('A Vulkan driver library (.so) to pack in the APK and use instead of the device\'s own,\n'
                                'such as Mesa\'s Turnip for Adreno GPUs. Empty: the device\'s driver.\n'
-                               'If the library does not load on the device, the app uses the device\'s driver.')
-        self.shared_font = QLineEdit(); self.shared_font.setPlaceholderText('the device\'s Roboto')   # porter port --shared-font
-        self.shared_font.setToolTip('A TrueType font (.ttf) to pack as the system font the game asks for.\n'
-                                    'One with CJK characters shows the Chinese and Korean text of a game that draws it with the system font.')
-        self.mt_replay = QCheckBox('Multithread replay: record the game\'s Vulkan commands on a thread of their own (faster in busy scenes; port again to turn it off)')   # porter port --mt-replay
-        self.debug = QCheckBox('Development build (debuggable, debug information, DM_CTL key presses)')
-        self.experimental = QCheckBox('Experimental: try a game that is not ported to Android yet (it may not start)')
+                               'If the library does not load on the device, the app uses the device\'s driver.'))
+        self.shared_font = QLineEdit(); self.shared_font.setPlaceholderText(tr('the device\'s Roboto'))   # porter port --shared-font
+        self.shared_font.setToolTip(tr('A TrueType font (.ttf) to pack as the system font the game asks for.\n'
+                                    'One with CJK characters shows the Chinese and Korean text of a game that draws it with the system font.'))
+        self.mt_replay = QCheckBox(tr('Multithread replay: record the game\'s Vulkan commands on a thread of their own (faster in busy scenes; port again to turn it off)'))   # porter port --mt-replay
+        self.debug = QCheckBox(tr('Development build (debuggable, debug information, DM_CTL key presses)'))
+        self.experimental = QCheckBox(tr('Experimental: try a game that is not ported to Android yet (it may not start)'))
         self.experimental.toggled.connect(lambda _: self.update_port_button())
-        self.vercode = QSpinBox(); self.vercode.setRange(0, 65535); self.vercode.setSpecialValueText('none'); self.vercode.setMaximumWidth(120)   # porter port --vercode-offset (0: none, or $NX2A_VERCODE_OFFSET)
-        self.vercode.setToolTip('Added to the APK\'s versionCode. Android does not install an APK over one with a higher versionCode;\n'
-                                'raise this to install a rebuild of the same game version over an earlier rebuild that had an offset, and keep its saves.')
-        self.headroom = QSpinBox(); self.headroom.setRange(-1, 48); self.headroom.setSpecialValueText('Auto'); self.headroom.setValue(-1); self.headroom.setSuffix(' GB')
+        self.vercode = QSpinBox(); self.vercode.setRange(0, 65535); self.vercode.setSpecialValueText(tr('none')); self.vercode.setMaximumWidth(120)   # porter port --vercode-offset (0: none, or $NX2A_VERCODE_OFFSET)
+        self.vercode.setToolTip(tr('Added to the APK\'s versionCode. Android does not install an APK over one with a higher versionCode;\n'
+                                'raise this to install a rebuild of the same game version over an earlier rebuild that had an offset, and keep its saves.'))
+        self.headroom = QSpinBox(); self.headroom.setRange(-1, 48); self.headroom.setSpecialValueText(tr('Auto')); self.headroom.setValue(-1); self.headroom.setSuffix(' GB')
         self.headroom.setMaximumWidth(120)   # porter port --alias-headroom (Auto: none passed)
-        headroom = with_info(self.headroom, 'Extra address space (the alias region) for a game that takes its memory as address regions.\n'
+        headroom = with_info(self.headroom, tr('Extra address space (the alias region) for a game that takes its memory as address regions.\n'
                              'Only for a game that crashes and whose log shows "AllocateAddressRegion refused (0x1803)".\n'
                              'Auto: 8 GB for a game version the profile was not tested with, none for a tested one.\n'
-                             'Raise it (16, 24 …) if the game still runs out. It uses no memory and does not change the speed.')
-        f.addRow('App name', self.app_name); f.addRow('Game language', self.language)
-        f.addRow('Output folder', path_row(self.out, self.pick_out)); f.addRow('Device', dev); f.addRow('', self.replace_signer)
-        f.addRow('RomFS on the device', romfs); f.addRow('', self.romfs_push); sd_row = QWidget(); sr = QHBoxLayout(sd_row); sr.setContentsMargins(0, 0, 0, 0); sr.addWidget(self.romfs_sd); sr.addWidget(self.romfs_sd_warn); sr.addStretch(1)
+                             'Raise it (16, 24 …) if the game still runs out. It uses no memory and does not change the speed.'))
+        f.addRow(tr('App name'), self.app_name); f.addRow(tr('Game language'), self.language)
+        f.addRow(tr('Output folder'), path_row(self.out, self.pick_out)); f.addRow(tr('Device'), dev); f.addRow('', self.replace_signer)
+        f.addRow(tr('RomFS on the device'), romfs); f.addRow('', self.romfs_push); sd_row = QWidget(); sr = QHBoxLayout(sd_row); sr.setContentsMargins(0, 0, 0, 0); sr.addWidget(self.romfs_sd); sr.addWidget(self.romfs_sd_warn); sr.addStretch(1)
         f.addRow('', sd_row)
-        f.addRow('Package', self.package); f.addRow('versionCode offset', self.vercode); f.addRow('Extra address space', headroom)
-        f.addRow('Vulkan driver', path_row(self.driver, self.pick_driver))
-        f.addRow('System font', path_row(self.shared_font, self.pick_shared_font))
+        f.addRow(tr('Package'), self.package); f.addRow(tr('versionCode offset'), self.vercode); f.addRow(tr('Extra address space'), headroom)
+        f.addRow(tr('Vulkan driver'), path_row(self.driver, self.pick_driver))
+        f.addRow(tr('System font'), path_row(self.shared_font, self.pick_shared_font))
         f.addRow('', self.fps60); f.addRow('', self.touch); f.addRow('', self.no_menu_button); f.addRow('', self.mt_replay); f.addRow('', self.debug); f.addRow('', self.experimental)
         scroll = FitScroll(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.NoFrame); scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setMinimumHeight(120); scroll.setWidget(inner); scroll.fit()   # the options scroll only when the window is too short for them, so the tab fits a 1080p screen
@@ -141,12 +142,12 @@ class PortTab(QWidget):
         v.addWidget(o)
 
         bar = QHBoxLayout()
-        self.port_btn = QPushButton('Port'); self.port_btn.setEnabled(False); self.port_btn.setMinimumHeight(36)
+        self.port_btn = QPushButton(tr('Port')); self.port_btn.setEnabled(False); self.port_btn.setMinimumHeight(36)
         f2 = self.port_btn.font(); f2.setPointSize(f2.pointSize() + 2); f2.setBold(True); self.port_btn.setFont(f2)
         self.port_btn.clicked.connect(self.start)
-        self.cancel_btn = QPushButton('Cancel'); self.cancel_btn.setEnabled(False); self.cancel_btn.clicked.connect(self.cancel)
-        self.open_btn = QPushButton('Open output folder'); self.open_btn.setEnabled(False); self.open_btn.clicked.connect(self.open_out)
-        self.inst_btn = QPushButton('Install on device'); self.inst_btn.setEnabled(False); self.inst_btn.clicked.connect(self.install_now)
+        self.cancel_btn = QPushButton(tr('Cancel')); self.cancel_btn.setEnabled(False); self.cancel_btn.clicked.connect(self.cancel)
+        self.open_btn = QPushButton(tr('Open output folder')); self.open_btn.setEnabled(False); self.open_btn.clicked.connect(self.open_out)
+        self.inst_btn = QPushButton(tr('Install on device')); self.inst_btn.setEnabled(False); self.inst_btn.clicked.connect(self.install_now)
         for b in (self.port_btn, self.cancel_btn): bar.addWidget(b)
         bar.addStretch(1)
         for b in (self.open_btn, self.inst_btn): bar.addWidget(b)
@@ -155,7 +156,7 @@ class PortTab(QWidget):
         self.step = QLabel(''); self.prog = QProgressBar(); self.prog.setTextVisible(True); self.prog.setRange(0, 1000); self.prog.setValue(0)
         v.addWidget(self.step); v.addWidget(self.prog)
         split = QSplitter(Qt.Vertical)
-        self.stages = QTreeWidget(); self.stages.setHeaderLabels(['', 'Stage', 'Result', 'Time']); self.stages.setRootIsDecorated(False)
+        self.stages = QTreeWidget(); self.stages.setHeaderLabels(['', tr('Stage'), tr('Result'), tr('Time')]); self.stages.setRootIsDecorated(False)
         hh = self.stages.header(); hh.setSectionResizeMode(0, QHeaderView.ResizeToContents); hh.setSectionResizeMode(1, QHeaderView.ResizeToContents); hh.setSectionResizeMode(2, QHeaderView.Stretch)
         self.log = QPlainTextEdit(); self.log.setReadOnly(True); self.log.setFont(QFont('Consolas' if os.name == 'nt' else 'Menlo', 9)); self.log.setMaximumBlockCount(20000)
         split.addWidget(self.stages); split.addWidget(self.log); split.setSizes([180, 220])
@@ -165,49 +166,49 @@ class PortTab(QWidget):
 
     # ---- the game folder ----
     def pick_folder(self):
-        d = QFileDialog.getExistingDirectory(self, 'Game folder', self.folder.text() or str(Path.home()))
+        d = QFileDialog.getExistingDirectory(self, tr('Game folder'), self.folder.text() or str(Path.home()))
         if d: self.folder.setText(d); self.inspect()
 
     def pick_driver(self):
-        p = QFileDialog.getOpenFileName(self, 'Vulkan driver', self.driver.text() or str(Path.home()), 'Vulkan driver (*.so)')[0]
+        p = QFileDialog.getOpenFileName(self, tr('Vulkan driver'), self.driver.text() or str(Path.home()), tr('Vulkan driver (*.so)'))[0]
         if p: self.driver.setText(p)
 
     def pick_shared_font(self):
-        p = QFileDialog.getOpenFileName(self, 'System font', self.shared_font.text() or str(Path.home()), 'TrueType font (*.ttf)')[0]
+        p = QFileDialog.getOpenFileName(self, tr('System font'), self.shared_font.text() or str(Path.home()), tr('TrueType font (*.ttf)'))[0]
         if p: self.shared_font.setText(p)
 
     def pick_out(self):
-        d = QFileDialog.getExistingDirectory(self, 'Output folder', self.out.text() or self.folder.text() or str(Path.home()))
+        d = QFileDialog.getExistingDirectory(self, tr('Output folder'), self.out.text() or self.folder.text() or str(Path.home()))
         if d: self.out.setText(d)
 
     def inspect(self):
         d = self.folder.text().strip()
         self.info = None; self.port_btn.setEnabled(False)
         if not d: return
-        if not Path(d).is_dir(): self.card.setText(f'<span style="color:#c62828">Not a folder: {d}</span>'); return
-        self.card.setText('Reading the game folder…')
-        def failed(message, code): self.on_inspect({'error': 'Could not inspect the game folder:\n' + message}, code)
+        if not Path(d).is_dir(): self.card.setText(tr('<span style="color:#c62828">Not a folder: {path}</span>', path=html.escape(d))); return
+        self.card.setText(tr('Reading the game folder…'))
+        def failed(message, code): self.on_inspect({'error': tr('Could not inspect the game folder:\n') + message}, code)
         call_json(self, ['inspect', d, '--json'], self.on_inspect, failed=failed)
 
     def on_inspect(self, info, code):
         err = info
         self.info = info = None if info and info.get('error') else info
         if not info:
-            message = (err or {}).get('error') or 'No game found in this folder (an NSP, XCI, NSZ or XCZ with a title ID).'
+            message = event_text((err or {}).get('error') or '') or tr('No game found in this folder (an NSP, XCI, NSZ or XCZ with a title ID).')
             self.card.setText('<span style="color:#c62828">' + html.escape(message).replace('\n', '<br>') + '</span>'); return
         a = info.get('android') or {}
         st = a.get('status', 'ios only' if info.get('profile') else 'not supported')
         col = STATUS_COLOUR.get(st, '#c62828')
-        rows = [(f'<b>{info["name"]}</b> &nbsp; <span style="color:#757575">{info["title_id"]}</span>' if info.get('name') else f'<b>{info["title_id"]}</b>') + ' &nbsp; '
-                f'<span style="background:{col};color:white;padding:1px 6px">&nbsp;{st}&nbsp;</span>']
-        files = [f'base game' ] + [f'update {u["version"]}' for u in info['updates']] + ([f'{len(info["dlc"])} DLC'] if info['dlc'] else [])
-        rows.append('In the folder: ' + ', '.join(files) + (f' — packs <b>{info["pack"]}</b>' if info.get('pack') else ''))
-        if info.get('compressed'): rows.append(f'<span style="color:#757575">NSZ / XCZ ({len(info["compressed"])}): decompressed during the port into a temporary folder, deleted once extracted</span>')
-        if a.get('tested'): rows.append(f'Tested: {a["tested"]}')
-        if info.get('reason'): rows.append(f'<span style="color:{"#ef6c00" if info["supported"] else "#c62828"}">{info["reason"]}</span>')
+        rows = [(f'<b>{html.escape(info["name"])}</b> &nbsp; <span style="color:#757575">{info["title_id"]}</span>' if info.get('name') else f'<b>{info["title_id"]}</b>') + ' &nbsp; '
+                f'<span style="background:{col};color:white;padding:1px 6px">&nbsp;{event_text(st)}&nbsp;</span>']
+        files = [tr('base game')] + [tr('update {version}', version=u["version"]) for u in info['updates']] + ([tr('{count} DLC', count=len(info["dlc"]))] if info['dlc'] else [])
+        rows.append(tr('In the folder: ') + ', '.join(files) + (tr(' — packs <b>{version}</b>', version=info["pack"]) if info.get('pack') else ''))
+        if info.get('compressed'): rows.append(tr('<span style="color:#757575">NSZ / XCZ ({count}): decompressed during the port into a temporary folder, deleted once extracted</span>', count=len(info["compressed"])))
+        if a.get('tested'): rows.append(tr('Tested: {tested}', tested=a["tested"]))
+        if info.get('reason'): rows.append(f'<span style="color:{"#ef6c00" if info["supported"] else "#c62828"}">{html.escape(event_text(info["reason"]))}</span>')
         self.card.setText('<br>'.join(rows))
-        self.app_name.setPlaceholderText(info.get('name') or 'the game\'s name')
-        self.package.setPlaceholderText(a.get('package') or 'the profile\'s package')
+        self.app_name.setPlaceholderText(info.get('name') or tr('the game\'s name'))
+        self.package.setPlaceholderText(a.get('package') or tr('the profile\'s package'))
         self.update_port_button()
 
     def update_port_button(self):   # a supported game, or any game with Experimental ticked
@@ -220,7 +221,7 @@ class PortTab(QWidget):
             self.device.clear()
             for r in rows or []:
                 if r['state'] == 'device': self.device.addItem(f'{r["serial"]}  {r["info"]}', r['serial'])
-            if not self.device.count(): self.device.addItem('no device connected', '')
+            if not self.device.count(): self.device.addItem(tr('no device connected'), '')
             i = self.device.findData(cur)
             if i >= 0: self.device.setCurrentIndex(i)
         call_json(self, ['devices', '--json'], got)
@@ -229,7 +230,7 @@ class PortTab(QWidget):
     def start(self):
         cfg = config.load()
         if not cfg.get('keys'):
-            QMessageBox.warning(self, 'prod.keys', 'Set the path of your prod.keys on the Setup tab first.'); self.win.tabs.setCurrentIndex(1); return
+            QMessageBox.warning(self, tr('prod.keys'), tr('Set the path of your prod.keys on the Setup tab first.')); self.win.tabs.setCurrentIndex(1); return
         args = ['port', self.folder.text().strip(), '--progress', 'json']
         if self.app_name.text().strip(): args += ['--app-name', self.app_name.text().strip()]
         if self.language.currentData(): args += ['--language', self.language.currentData()]
@@ -264,7 +265,7 @@ class PortTab(QWidget):
         return (['--romfs-at', self.romfs_at.text().strip()] if self.romfs_at.text().strip() else []) + (['--romfs-push'] if self.romfs_push.isChecked() else [])   # empty: as the device has it (an SD install's card folder too); "app" brings the RomFS back from the card
 
     def run(self, args):
-        self.stages.clear(); self.items = {}; self.log.clear(); self.prog.setValue(0); self.step.setText('starting…')
+        self.stages.clear(); self.items = {}; self.log.clear(); self.prog.setValue(0); self.step.setText(tr('starting…'))
         self.result = None; self.t0 = time.time(); self.cancelled = False
         for b in (self.port_btn, self.open_btn, self.inst_btn): b.setEnabled(False)
         self.cancel_btn.setEnabled(True)
@@ -272,7 +273,7 @@ class PortTab(QWidget):
         self.porter.start(args)
 
     def cancel(self):
-        self.cancelled = True; self.porter.cancel(); self.append('[RED] cancelled')
+        self.cancelled = True; self.porter.cancel(); self.append(tr('[RED] cancelled'))
 
     def append(self, msg):
         red = msg.startswith('[RED] ')
@@ -287,21 +288,21 @@ class PortTab(QWidget):
     def on_event(self, ev):
         e = ev.get('ev')
         if e == 'stage':
-            self.cur = ev; it = self.item(ev['k'], ev['name']); it.setText(0, '▶'); it.setData(0, Qt.UserRole, time.time())
-            self.step.setText(f'[{ev["k"]}/{ev["n"]}] {ev["name"]}' + (f' · {ev["step"]}' if ev.get('step') else '')); self.prog.setRange(0, 0)
+            self.cur = ev; it = self.item(ev['k'], event_text(ev['name'])); it.setText(0, '▶'); it.setData(0, Qt.UserRole, time.time())
+            self.step.setText(f'[{ev["k"]}/{ev["n"]}] {event_text(ev["name"])}' + (f' · {event_text(ev["step"])}' if ev.get('step') else '')); self.prog.setRange(0, 0)
         elif e == 'step':
-            self.step.setText(f'{ev["name"]} · {ev["step"]}'); self.prog.setRange(0, 0)
+            self.step.setText(f'{event_text(ev["name"])} · {event_text(ev["step"])}'); self.prog.setRange(0, 0)
         elif e == 'progress':
             done, total = ev.get('done'), ev.get('total')
-            count = '' if done is None else (f'{size(done)} / {size(total)}' if ev.get('unit') == 'B' and total else f'{done:,}' + (f' / {total:,}' if total else '') + (f' {ev["unit"]}' if ev.get('unit') else ''))
-            self.step.setText(f'{ev["name"]}' + (f' · {ev["step"]}' if ev.get('step') else '') + (f' · {count}' if count else '') + (f' · {ev["note"]}' if ev.get('note') else '')
-                              + (f' · ETA {hms(ev["eta"])}' if ev.get('eta') else ''))
+            count = '' if done is None else (f'{size(done)} / {size(total)}' if ev.get('unit') == 'B' and total else f'{done:,}' + (f' / {total:,}' if total else '') + (f' {event_text(ev["unit"])}' if ev.get('unit') else ''))
+            self.step.setText(f'{event_text(ev["name"])}' + (f' · {event_text(ev["step"])}' if ev.get('step') else '') + (f' · {count}' if count else '') + (f' · {event_text(ev["note"])}' if ev.get('note') else '')
+                              + (tr(' · ETA {time}', time=hms(ev["eta"])) if ev.get('eta') else ''))
             if ev.get('frac') is not None: self.prog.setRange(0, 1000); self.prog.setValue(int(ev['frac'] * 1000))
             else: self.prog.setRange(0, 0)
         elif e == 'stage_end':
-            it = self.item(ev['k'], ev['name']); ok = ev.get('ok', True)
+            it = self.item(ev['k'], event_text(ev['name'])); ok = ev.get('ok', True)
             it.setText(0, '✓' if ok else '✗'); it.setForeground(0, QColor('#2e7d32' if ok else '#c62828'))
-            it.setText(2, ev.get('summary', '')); it.setText(3, hms(ev.get('elapsed')))
+            it.setText(2, event_text(ev.get('summary', ''))); it.setText(3, hms(ev.get('elapsed')))
             self.prog.setRange(0, 1000); self.prog.setValue(1000 if ok else 0)
         elif e == 'say':
             self.append(ev.get('msg', ''))
@@ -319,10 +320,10 @@ class PortTab(QWidget):
         self.update_port_button()
         took = hms(time.time() - self.t0)
         if code == 0:
-            self.step.setText(f'done in {took}'); self.prog.setRange(0, 1000); self.prog.setValue(1000)
+            self.step.setText(tr('done in {time}', time=took)); self.prog.setRange(0, 1000); self.prog.setValue(1000)
             if self.result: self.open_btn.setEnabled(True); self.inst_btn.setEnabled(True)
         else:
-            self.step.setText('cancelled' if self.cancelled or code == 130 else f'failed after {took} (the log says why)')
+            self.step.setText(tr('cancelled') if self.cancelled or code == 130 else tr('failed after {time} (the log says why)', time=took))
             self.prog.setRange(0, 1000); self.prog.setValue(0)
 
     def open_out(self):
@@ -338,42 +339,41 @@ class SetupTab(QWidget):
         super().__init__()
         self.win = win
         v = QVBoxLayout(self)
-        g = QGroupBox('Requirements'); gl = QVBoxLayout(g)
-        self.table = QTableWidget(0, 3); self.table.setHorizontalHeaderLabels(['', 'Requirement', 'Found']); self.table.verticalHeader().setVisible(False)
+        g = QGroupBox(tr('Requirements')); gl = QVBoxLayout(g)
+        self.table = QTableWidget(0, 3); self.table.setHorizontalHeaderLabels(['', tr('Requirement'), tr('Found')]); self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers); self.table.setSelectionMode(QTableWidget.NoSelection)
         hh = self.table.horizontalHeader(); hh.setSectionResizeMode(0, QHeaderView.ResizeToContents); hh.setSectionResizeMode(1, QHeaderView.ResizeToContents); hh.setSectionResizeMode(2, QHeaderView.Stretch)
         gl.addWidget(self.table)
-        note = QLabel('A port needs the <b>Android NDK r27c</b>, the <b>.NET SDK 10</b> and, to install from here, Android <b>platform-tools</b>. '
+        note = QLabel(tr('A port needs the <b>Android NDK r27c</b>, the <b>.NET SDK 10</b> and, to install from here, Android <b>platform-tools</b>. '
                       '<b>Download missing tools</b> fetches them from Google and Microsoft (about 1 GB) into your nx2android folder; or install them yourself and set their paths below. '
-                      'Your <b>prod.keys</b> must come from your own Switch. Keys and game files never leave your computer except to your own device.')
+                      'Your <b>prod.keys</b> must come from your own Switch. Keys and game files never leave your computer except to your own device.'))
         note.setWordWrap(True); note.setTextFormat(Qt.RichText); gl.addWidget(note)
-        dl = QHBoxLayout(); self.dl_btn = QPushButton('Download missing tools'); self.dl_btn.clicked.connect(self.download)
+        dl = QHBoxLayout(); self.dl_btn = QPushButton(tr('Download missing tools')); self.dl_btn.clicked.connect(self.download)
         self.dl_step = QLabel(''); self.dl_prog = QProgressBar(); self.dl_prog.setRange(0, 1000); self.dl_prog.setVisible(False)
         dl.addWidget(self.dl_btn); dl.addWidget(self.dl_step, 1); dl.addWidget(self.dl_prog, 1); gl.addLayout(dl)
         self.fetch = Porter(self); self.fetch.event.connect(self.on_fetch); self.fetch.finished.connect(self.fetched)
         v.addWidget(g)
-        s = QGroupBox('Settings'); f = QFormLayout(s); self.edits = {}
+        s = QGroupBox(tr('Settings')); f = QFormLayout(s); self.edits = {}
         for key, label, kind in self.FIELDS:
             e = QLineEdit(); self.edits[key] = e
-            e.setPlaceholderText({'ndk': 'found automatically', 'dotnet': 'found automatically', 'adb': 'found automatically', 'out': 'the game folder', 'device': 'the only connected device'}.get(key, ''))
-            f.addRow(label, e if kind == 'text' else path_row(e, lambda _=False, k=key, kd=kind: self.pick(k, kd)))
-        row = QHBoxLayout(); save = QPushButton('Save and check'); save.clicked.connect(self.save); row.addStretch(1); row.addWidget(save)
+            e.setPlaceholderText({'ndk': tr('found automatically'), tr('dotnet'): tr('found automatically'), tr('adb'): tr('found automatically'), 'out': tr('the game folder'), 'device': tr('the only connected device')}.get(key, ''))
+            f.addRow(tr(label), e if kind == 'text' else path_row(e, lambda _=False, k=key, kd=kind: self.pick(k, kd)))
+        row = QHBoxLayout(); save = QPushButton(tr('Save and check')); save.clicked.connect(self.save); row.addStretch(1); row.addWidget(save)
         f.addRow('', row)
         v.addWidget(s); v.addStretch(1)
         self.load()
 
     # ---- downloading the missing tools ----
     def download(self):
-        self.dl_btn.setEnabled(False); self.dl_step.setText('reading the download lists…')
+        self.dl_btn.setEnabled(False); self.dl_step.setText(tr('reading the download lists…'))
         call_json(self, ['tools', '--json'], self.confirm_download)
 
     def confirm_download(self, items, code):
         self.dl_btn.setEnabled(True); self.dl_step.setText('')
-        if items is None: QMessageBox.warning(self, 'Download', 'Could not read the download lists from Google and Microsoft. Check the internet connection and try again.'); return
-        if not items: QMessageBox.information(self, 'Download', 'Nothing to download: every tool is there.'); return
-        rows = ''.join(f'<li><b>{it["name"]}</b> {it["version"]}, {size(it["size"])}, from {it["url"].split("/")[2]} (<a href="{it["license"]}">license</a>)</li>' for it in items)
-        box = QMessageBox(QMessageBox.Question, 'Download missing tools', f'<p>Download and unpack into your nx2android folder:</p><ul>{rows}</ul>'
-                          '<p>They come from their makers under their own licenses: downloading them means you accept those.</p>', QMessageBox.Yes | QMessageBox.No, self)
+        if items is None: QMessageBox.warning(self, tr('Download'), tr('Could not read the download lists from Google and Microsoft. Check the internet connection and try again.')); return
+        if not items: QMessageBox.information(self, tr('Download'), tr('Nothing to download: every tool is there.')); return
+        rows = ''.join(tr('<li><b>{name}</b> {version}, {size}, from {host} (<a href="{license}">license</a>)</li>', name=it["name"], version=it["version"], size=size(it["size"]), host=it["url"].split("/")[2], license=it["license"]) for it in items)
+        box = QMessageBox(QMessageBox.Question, tr('Download missing tools'), tr('<p>Download and unpack into your nx2android folder:</p><ul>{rows}</ul><p>They come from their makers under their own licenses: downloading them means you accept those.</p>', rows=rows), QMessageBox.Yes | QMessageBox.No, self)
         box.setTextFormat(Qt.RichText)
         if box.exec() != QMessageBox.Yes: return
         self.dl_btn.setEnabled(False); self.dl_prog.setVisible(True); self.dl_prog.setRange(0, 0); self.dl_errors = []
@@ -381,23 +381,24 @@ class SetupTab(QWidget):
 
     def on_fetch(self, ev):
         e = ev.get('ev')
-        if e == 'stage': self.dl_step.setText(f'[{ev["k"]}/{ev["n"]}] {ev["name"]}'); self.dl_prog.setRange(0, 0)
+        if e == 'stage': self.dl_step.setText(f'[{ev["k"]}/{ev["n"]}] {event_text(ev["name"])}'); self.dl_prog.setRange(0, 0)
         elif e == 'progress':
             done, total = ev.get('done'), ev.get('total')
-            self.dl_step.setText(f'{ev["name"]} · {ev.get("step") or ""}' + (f' · {size(done)} / {size(total)}' if ev.get('unit') == 'B' and total and done is not None else ''))
+            self.dl_step.setText(f'{event_text(ev["name"])} · {event_text(ev.get("step") or "")}' + (f' · {size(done)} / {size(total)}' if ev.get('unit') == 'B' and total and done is not None else ''))
             if ev.get('frac') is not None: self.dl_prog.setRange(0, 1000); self.dl_prog.setValue(int(ev['frac'] * 1000))
             else: self.dl_prog.setRange(0, 0)
         elif e == 'say' and ev.get('msg', '').startswith('[RED] '): self.dl_errors.append(ev['msg'].removeprefix('[RED] '))
 
     def fetched(self, code):
         self.dl_btn.setEnabled(True); self.dl_prog.setVisible(False)
-        self.dl_step.setText('the tools are ready' if code == 0 else 'the download failed')
-        if code: QMessageBox.warning(self, 'Download', '\n'.join(self.dl_errors) or 'The download failed.')
+        self.dl_step.setText(tr('the tools are ready') if code == 0 else tr('the download failed'))
+        if code: QMessageBox.warning(self, tr('Download'), '\n'.join(self.dl_errors) or tr('The download failed.'))
         self.load()
 
     def pick(self, key, kind):
         e = self.edits[key]
-        p = QFileDialog.getExistingDirectory(self, key, e.text()) if kind == 'dir' else QFileDialog.getOpenFileName(self, key, e.text())[0]
+        label = tr(next(label for k, label, _ in self.FIELDS if k == key))
+        p = QFileDialog.getExistingDirectory(self, label, e.text()) if kind == 'dir' else QFileDialog.getOpenFileName(self, label, e.text())[0]
         if p: e.setText(p)
 
     def load(self):
@@ -417,8 +418,8 @@ class SetupTab(QWidget):
                 i = self.table.rowCount(); self.table.insertRow(i)
                 mark = QTableWidgetItem('✓' if r['ok'] else ('✗' if r['required'] else '–'))
                 mark.setForeground(QColor('#2e7d32' if r['ok'] else '#c62828' if r['required'] else '#ef6c00'))
-                self.table.setItem(i, 0, mark); self.table.setItem(i, 1, QTableWidgetItem(r['name']))
-                self.table.setItem(i, 2, QTableWidgetItem(r['detail'] + (f'  →  {r["fix"]}' if r['fix'] and not r['ok'] else '')))
+                self.table.setItem(i, 0, mark); self.table.setItem(i, 1, QTableWidgetItem(event_text(r['name'])))
+                self.table.setItem(i, 2, QTableWidgetItem(event_text(r['detail']) + (f'  →  {event_text(r["fix"])}' if r['fix'] and not r['ok'] else '')))
             self.table.resizeRowsToContents()
             self.win.set_ready(bool(rows) and all(r['ok'] or not r['required'] for r in rows))
         call_json(self, ['doctor', '--json'], got)
@@ -429,10 +430,10 @@ class GamesTab(QWidget):
     def __init__(self):
         super().__init__()
         v = QVBoxLayout(self)
-        self.table = QTableWidget(0, 4); self.table.setHorizontalHeaderLabels(['Status', 'Game', 'Title ID', 'Tested on'])
+        self.table = QTableWidget(0, 4); self.table.setHorizontalHeaderLabels([tr('Status'), tr('Game'), tr('Title ID'), tr('Tested on')])
         self.table.verticalHeader().setVisible(False); self.table.setEditTriggers(QTableWidget.NoEditTriggers); self.table.setSortingEnabled(True)
         hh = self.table.horizontalHeader(); hh.setSectionResizeMode(1, QHeaderView.Stretch); hh.setSectionResizeMode(2, QHeaderView.ResizeToContents); hh.setSectionResizeMode(3, QHeaderView.Stretch)
-        lab = QLabel('Games ported to Android. <b>playable</b>, <b>wip</b> (plays, with parts missing) and <b>boots</b> ones can be ported; any other game can still be tried with Experimental on the Port tab.')
+        lab = QLabel(tr('Games ported to Android. <b>playable</b>, <b>wip</b> (plays, with parts missing) and <b>boots</b> ones can be ported; any other game can still be tried with Experimental on the Port tab.'))
         lab.setWordWrap(True); lab.setTextFormat(Qt.RichText)
         v.addWidget(lab); v.addWidget(self.table)
         call_json(self, ['profiles', '--json'], self.got)
@@ -441,7 +442,7 @@ class GamesTab(QWidget):
         rows = sorted(rows or [], key=lambda r: r['name'].lower())
         self.table.setSortingEnabled(False); self.table.setRowCount(len(rows))
         for i, r in enumerate(rows):
-            st = QTableWidgetItem(r['status']); st.setForeground(QColor(STATUS_COLOUR.get(r['status'], '#000')))
+            st = QTableWidgetItem(event_text(r['status'])); st.setForeground(QColor(STATUS_COLOUR.get(r['status'], '#000')))
             for j, it in enumerate((st, QTableWidgetItem(r['name']), QTableWidgetItem(r['id']), QTableWidgetItem(r['tested']))): self.table.setItem(i, j, it)
         self.table.setSortingEnabled(True)
 
@@ -452,22 +453,22 @@ class SavesTab(QWidget):
         super().__init__()
         self.busy = None
         v = QVBoxLayout(self)
-        lab = QLabel('A ported game\'s save between the device and this PC. The app keeps its exports in its files folder on the device (<code>Android/data/&lt;package&gt;/files/saves</code>), '
+        lab = QLabel(tr('A ported game\'s save between the device and this PC. The app keeps its exports in its files folder on the device (<code>Android/data/&lt;package&gt;/files/saves</code>), '
                      'one folder each, the save\'s files as they are: the layout a console\'s save tools copy, so a console\'s save folder imports as it is. '
-                     'The game\'s pause menu has Export save and Import save too. Exporting or importing here stops the app on the device; an import exports the save it replaces there first.')
+                     'The game\'s pause menu has Export save and Import save too. Exporting or importing here stops the app on the device; an import exports the save it replaces there first.'))
         lab.setWordWrap(True); lab.setTextFormat(Qt.RichText); v.addWidget(lab)
         row = QHBoxLayout(); self.app = QComboBox(); self.app.currentIndexChanged.connect(self.refresh)
-        r = QPushButton('Refresh'); r.clicked.connect(self.load_apps)
-        row.addWidget(QLabel('Game on the device:')); row.addWidget(self.app, 1); row.addWidget(r); v.addLayout(row)
-        self.table = QTableWidget(0, 4); self.table.setHorizontalHeaderLabels(['Save folder', 'Made', 'Files', 'Size'])
+        r = QPushButton(tr('Refresh')); r.clicked.connect(self.load_apps)
+        row.addWidget(QLabel(tr('Game on the device:'))); row.addWidget(self.app, 1); row.addWidget(r); v.addLayout(row)
+        self.table = QTableWidget(0, 4); self.table.setHorizontalHeaderLabels([tr('Save folder'), tr('Made'), tr('Files'), tr('Size')])
         self.table.verticalHeader().setVisible(False); self.table.setEditTriggers(QTableWidget.NoEditTriggers); self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection); self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         v.addWidget(self.table, 1)
         b = QHBoxLayout()
-        self.b_export = QPushButton('Export the save to the PC…'); self.b_export.clicked.connect(self.export_new)
-        self.b_copy = QPushButton('Copy the chosen folder to the PC…'); self.b_copy.clicked.connect(self.export_chosen)
-        self.b_import = QPushButton('Import a save folder…'); self.b_import.clicked.connect(lambda: self.import_(False))
-        self.b_zip = QPushButton('Import a .zip…'); self.b_zip.clicked.connect(lambda: self.import_(True))
+        self.b_export = QPushButton(tr('Export the save to the PC…')); self.b_export.clicked.connect(self.export_new)
+        self.b_copy = QPushButton(tr('Copy the chosen folder to the PC…')); self.b_copy.clicked.connect(self.export_chosen)
+        self.b_import = QPushButton(tr('Import a save folder…')); self.b_import.clicked.connect(lambda: self.import_(False))
+        self.b_zip = QPushButton(tr('Import a .zip…')); self.b_zip.clicked.connect(lambda: self.import_(True))
         for w in (self.b_export, self.b_copy, self.b_import, self.b_zip): b.addWidget(w)
         v.addLayout(b)
         self.status = QLabel(''); self.status.setWordWrap(True); v.addWidget(self.status)
@@ -485,56 +486,55 @@ class SavesTab(QWidget):
         def got(rows, code):
             cur = self.pkg(); self.app.blockSignals(True); self.app.clear()
             for pk in rows if isinstance(rows, list) else []: self.app.addItem(pk, pk)
-            if not self.app.count(): self.app.addItem('no ported game on the device', '')
+            if not self.app.count(): self.app.addItem(tr('no ported game on the device'), '')
             i = self.app.findData(cur); self.app.setCurrentIndex(max(i, 0)); self.app.blockSignals(False)
             self.set_busy(None); self.refresh()
-            if not isinstance(rows, list): self.status.setText(f'[RED] {(rows or {}).get("error", "porter saves apps failed")}')
-        self.set_busy('looking for the device…'); call_json(self, ['saves', 'apps', '--json'], got)
+            if not isinstance(rows, list): self.status.setText(f'[RED] {(rows or {}).get("error", tr("porter saves apps failed"))}')
+        self.set_busy(tr('looking for the device…')); call_json(self, ['saves', 'apps', '--json'], got)
 
     def refresh(self, show=True):
         self.table.setRowCount(0)
         if not self.pkg(): return
         def got(rows, code):
             self.set_busy(None)
-            if not isinstance(rows, list): self.status.setText(f'[RED] {(rows or {}).get("error", "porter saves list failed")}'); return
+            if not isinstance(rows, list): self.status.setText(f'[RED] {(rows or {}).get("error", tr("porter saves list failed"))}'); return
             self.table.setRowCount(len(rows))
             for i, r in enumerate(rows):
-                cells = (r['name'] + ('  (+ device save)' if r['device'] else ''), time.strftime('%Y-%m-%d %H:%M', time.localtime(r['time'])), str(r['files']), size(r['bytes']))
+                cells = (r['name'] + (tr('  (+ device save)') if r['device'] else ''), time.strftime('%Y-%m-%d %H:%M', time.localtime(r['time'])), str(r['files']), size(r['bytes']))
                 for j, c in enumerate(cells):
                     it = QTableWidgetItem(c); it.setData(Qt.UserRole, r['name']); self.table.setItem(i, j, it)
-            if not rows: self.status.setText('No save folders on the device yet: export one (here, or from the game\'s pause menu).')
-        self.set_busy('reading the save folders…', show); call_json(self, ['saves', 'list', '--package', self.pkg(), '--json'], got)
+            if not rows: self.status.setText(tr('No save folders on the device yet: export one (here, or from the game\'s pause menu).'))
+        self.set_busy(tr('reading the save folders…'), show); call_json(self, ['saves', 'list', '--package', self.pkg(), '--json'], got)
 
     def done(self, what):
         def got(res, code):
             self.set_busy(None)
-            if code or not isinstance(res, dict) or res.get('error'): self.status.setText(f'[RED] {what} failed: {(res or {}).get("error", "see porter saves for the reason")}')
-            elif 'folder' in res: self.status.setText(f'Exported to {res["folder"]}'); QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(res['folder']).parent)))
-            else: self.status.setText(f'Imported {res.get("name")}' + (f'; the save it replaced is {res["backup"]} on the device' if res.get('backup') else '') + '. Open the game on the device.')
+            if code or not isinstance(res, dict) or res.get('error'): self.status.setText(tr('[RED] {operation} failed: {error}', operation=what, error=event_text(res.get("error") or "") if isinstance(res, dict) and res.get("error") else tr("see porter saves for the reason")))
+            elif 'folder' in res: self.status.setText(tr('Exported to {folder}', folder=res["folder"])); QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(res['folder']).parent)))
+            else: self.status.setText(tr('Imported {name}', name=res.get("name")) + (tr('; the save it replaced is {backup} on the device', backup=res["backup"]) if res.get('backup') else '') + tr('. Open the game on the device.'))
             if not code: self.refresh(show=False)
         return got
 
     def export_new(self):
-        d = QFileDialog.getExistingDirectory(self, 'Folder to put the save in')
+        d = QFileDialog.getExistingDirectory(self, tr('Folder to put the save in'))
         if not d: return
-        self.set_busy(f'exporting {self.pkg()}\'s save (the app is started on the device to copy it out)…')
-        call_json(self, ['saves', 'export', d, '--package', self.pkg(), '--json'], self.done('the export'))
+        self.set_busy(tr("exporting {package}'s save (the app is started on the device to copy it out)…", package=self.pkg()))
+        call_json(self, ['saves', 'export', d, '--package', self.pkg(), '--json'], self.done(tr('the export')))
 
     def export_chosen(self):
         it = self.table.item(self.table.currentRow(), 0) if self.table.currentRow() >= 0 else None
-        if not it: self.status.setText('Choose a save folder in the list first.'); return
-        d = QFileDialog.getExistingDirectory(self, 'Folder to put the save in')
+        if not it: self.status.setText(tr('Choose a save folder in the list first.')); return
+        d = QFileDialog.getExistingDirectory(self, tr('Folder to put the save in'))
         if not d: return
-        self.set_busy(f'copying {it.data(Qt.UserRole)}…')
-        call_json(self, ['saves', 'export', d, '--name', it.data(Qt.UserRole), '--package', self.pkg(), '--json'], self.done('the copy'))
+        self.set_busy(tr('copying {name}…', name=it.data(Qt.UserRole)))
+        call_json(self, ['saves', 'export', d, '--name', it.data(Qt.UserRole), '--package', self.pkg(), '--json'], self.done(tr('the copy')))
 
     def import_(self, zipped):
-        src = QFileDialog.getOpenFileName(self, 'The save as a .zip', '', 'Zip archives (*.zip)')[0] if zipped else QFileDialog.getExistingDirectory(self, 'The save folder (its files at the top)')
+        src = QFileDialog.getOpenFileName(self, tr('The save as a .zip'), '', tr('Zip archives (*.zip)'))[0] if zipped else QFileDialog.getExistingDirectory(self, tr('The save folder (its files at the top)'))
         if not src: return
-        if QMessageBox.question(self, 'Import the save', f'{Path(src).name} becomes {self.pkg()}\'s save on the device. The app is stopped; the save it replaces is exported '
-                                'on the device first (a folder ending -before-import). Go on?') != QMessageBox.Yes: return
-        self.set_busy(f'importing {Path(src).name}…')
-        call_json(self, ['saves', 'import', src, '--package', self.pkg(), '--json'], self.done('the import'))
+        if QMessageBox.question(self, tr('Import the save'), tr("{folder} becomes {package}'s save on the device. The app is stopped; the save it replaces is exported on the device first (a folder ending -before-import). Go on?", folder=Path(src).name, package=self.pkg())) != QMessageBox.Yes: return
+        self.set_busy(tr('importing {name}…', name=Path(src).name))
+        call_json(self, ['saves', 'import', src, '--package', self.pkg(), '--json'], self.done(tr('the import')))
 
 
 class Window(QMainWindow):
@@ -543,7 +543,7 @@ class Window(QMainWindow):
         self.setWindowTitle('nx2android'); self.resize(997, 820)
         self.tabs = QTabWidget()
         self.port = PortTab(self); self.setup = SetupTab(self); self.games = GamesTab(); self.saves = SavesTab()
-        self.tabs.addTab(self.port, 'Port'); self.tabs.addTab(self.setup, 'Setup'); self.tabs.addTab(self.games, 'Games'); self.tabs.addTab(self.saves, 'Saves')
+        self.tabs.addTab(self.port, tr('Port')); self.tabs.addTab(self.setup, tr('Setup')); self.tabs.addTab(self.games, tr('Games')); self.tabs.addTab(self.saves, tr('Saves'))
         self.setCentralWidget(self.tabs)
         self.first = True
 
@@ -554,6 +554,12 @@ class Window(QMainWindow):
 
 def main(argv):
     app = QApplication(argv); app.setApplicationName('nx2android'); app.setStyle('Fusion')
+    language = configure_ui_language(QLocale.system().name())
+    qt_translation = QTranslator(app)
+    if language == 'zh-CN' and qt_translation.load(
+        'qtbase_zh_CN', QLibraryInfo.path(QLibraryInfo.TranslationsPath)
+    ):
+        app.installTranslator(qt_translation)
     app.setWindowIcon(QIcon(str(Path(__file__).parent / 'icon.png')))   # docs/images/icon.svg, rendered by devtools/make_app_icon.py
     w = Window(); w.show()
     return app.exec()

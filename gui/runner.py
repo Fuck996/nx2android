@@ -5,6 +5,7 @@ import json, os, signal, subprocess, sys
 
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Signal
 
+from gui.i18n import tr
 from porter.paths import REPO
 
 
@@ -81,10 +82,10 @@ def call_json(parent, args, done, *, failed=None):
         err = bytes(p.readAllStandardError()).decode('utf-8', 'replace').strip()
         try: obj = json.loads(out)
         except ValueError:
-            reason = 'porter crashed' if status == QProcess.CrashExit else f'porter exited with code {code}' if code else 'porter returned invalid or empty JSON'
+            reason = tr('porter crashed') if status == QProcess.CrashExit else tr('porter exited with code {code}', code=code) if code else tr('porter returned invalid or empty JSON')
             finish(None, code, reason + (':\n' + err if err else '.'))
         else: finish(obj, code)
     def error(kind):
-        if kind == QProcess.FailedToStart: finish(None, -1, 'Could not start porter: ' + p.errorString())
+        if kind == QProcess.FailedToStart: finish(None, -1, tr('Could not start porter: {error}', error=p.errorString()))
     p.errorOccurred.connect(error); p.finished.connect(fin); p.start()
     return p
