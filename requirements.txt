@@ -2,7 +2,7 @@
 lz4
 capstone
 pillow
-fonttools
+fonttools==4.61.1
 pyyaml
 backports.zstd; python_version < "3.14"
 pycryptodome   # NSZ / XCZ dumps (porter.dumps: AES-CTR, with zstd)

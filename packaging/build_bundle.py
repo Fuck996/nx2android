@@ -27,6 +27,9 @@ def main():
         d = APP / f; d.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(ROOT / f, d)
     for src, dst in (('packaging/INSTALL.md', 'INSTALL.md'), ('README.md', 'README.md'), ('docs/ARCHITECTURE.md', 'docs/ARCHITECTURE.md'), ('docs/DEVELOPMENT_GUIDE.md', 'docs/DEVELOPMENT_GUIDE.md'), ('nxnative/LICENSE', 'LICENSE')):
         (APP / dst).parent.mkdir(parents=True, exist_ok=True); shutil.copy2(ROOT / src, APP / dst)
+    if os.name == 'nt':
+        subprocess.run([sys.executable, str(ROOT / 'packaging/build_cjk_font.py'), str(APP / 'resources/game-fonts')], cwd=ROOT, check=True)
+        shutil.copy2(ROOT / 'docs/FORK_CJK_FONT.md', APP / 'docs/FORK_CJK_FONT.md')
     shutil.copytree(ROOT / 'docs/images', APP / 'docs/images', dirs_exist_ok=True)   # the README's games table
     ver = subprocess.run(['git', '-C', str(ROOT), 'describe', '--always', '--dirty'], capture_output=True, text=True).stdout.strip() or 'dev'
     (APP / 'VERSION').write_text(ver + '\n', encoding='utf-8')   # which commit the bundle was built from

@@ -7,7 +7,7 @@ import hashlib, importlib.util, json, os, re, shlex, shutil, sys, time, tracebac
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from porter import config, datapack, dumps, fpslocker, install, paths, profiles, product_cache, romfs_pack, toolchain
+from porter import cjk_font, config, datapack, dumps, fpslocker, install, paths, profiles, product_cache, romfs_pack, toolchain
 from porter.adb import NO_ADB, Adb, AdbError
 from porter.paths import DM, NXNATIVE
 from porter.upstream import BuildError, PROG, android_profile, game, nacp, nsp, profile_guess, say, trinity, uepak
@@ -937,8 +937,14 @@ class Port:
     def data(self):
         PROG.stage('data pack', step='button-icon font')
         font_env, font_files = self.button_font()
-        if self.o.shared_font:   # the host serves it for every shared-font type but the button icons (hle_sdk16.c font_get)
-            font_env, font_files = font_env + [f'DM_SHARED_FONT={datapack.files_folder(self.package)}/standard.ttf'], {**font_files, 'standard.ttf': self.o.shared_font}
+        shared_font, font_license = cjk_font.choose_shared_font(self.o.shared_font, self.lang, self.sysdata)
+        if shared_font:   # every shared-font type except the button icons (hle_sdk16.c font_get)
+            font_env.append(f'DM_SHARED_FONT={datapack.files_folder(self.package)}/standard.ttf')
+            font_files['standard.ttf'] = shared_font
+            if font_license:
+                font_files[cjk_font.LICENSE_NAME] = font_license
+        elif cjk_font.needs_chinese_fallback(self.lang, self.sysdata):
+            say('No bundled Simplified Chinese font found; if text appears as ???, choose a Chinese .ttf as System font (--shared-font).')
         dst = self.o.out / f'{app_stem(self.g, self.app_name)}-data'
         romfs, zenv = self.game / 'RomFS', []
         if self.ap.romfs_zstd and romfs.is_dir():   # android.tsv romfs zstd: packed copies of the files that compress, made once into the build folder; the rest stay links to the extraction
