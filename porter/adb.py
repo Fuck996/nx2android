@@ -3,6 +3,7 @@
 # pieces are kept if their checksums match). The port's own outputs are also compared by MD5: a rewriter cut changes a module without changing its size, and Unpacking's sdk cuts never
 # reached the device until they were. Pushes use -Z: compressing them took adbd down.
 import contextlib, hashlib, os, re, shlex, shutil, subprocess, tarfile, tempfile, time
+import sys
 from pathlib import Path
 
 
@@ -66,6 +67,56 @@ class Adb:
         raise AdbError(f'adb {a[0]}: {err}')
 
     def shell(self, script, **kw): return self.run('shell', script, **kw)
+
+    def pull_oodle_result(self, remote, local, timeout=1800):
+        """Fetch the nonempty Oodle result. Windows adb.exe may not open a Unicode or deep host path."""
+        local = Path(local)
+        resolved = local.parent.resolve() / local.name
+        target = str(resolved)
+        if sys.platform != 'win32' or (target.isascii() and len(target) < LONG_PATH):
+            return self.run('pull', remote, str(local), timeout=timeout)
+
+        # ADB only sees the remote path and a binary stdout handle, not the host
+        # filename. Python opens the temp on the same volume as the destination.
+        # exec-out does not always propagate remote exit status, so check byte count.
+        src = shlex.quote(remote)
+        raw_size = self.shell(f'stat -c %s -- {src}', timeout=min(timeout, 30), retries=1).strip()
+        if not re.fullmatch(r'[0-9]{1,20}', raw_size) or int(raw_size) == 0:
+            raise AdbError(f'adb Oodle pull: invalid remote file size for {remote}')
+        expected = int(raw_size)
+        def win_path(p):
+            # Create/open long UNC paths as well as long drive paths. Build the
+            # temp path with the same prefix because its basename is longer.
+            q = str(p)
+            slash = chr(92)
+            prefix = slash * 2 + '?' + slash
+            if len(target) < LONG_PATH or q.startswith(prefix): return q
+            return prefix + ('UNC' + slash + q[2:] if q.startswith(slash * 2) else q)
+
+        stage = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='wb', dir=win_path(resolved.parent),
+                                             prefix='.oodle-', suffix='.part', delete=False) as stream:
+                stage = stream.name
+                result = subprocess.run(self.cmd('exec-out', f'cat -- {src}'), stdout=stream,
+                                        stderr=subprocess.PIPE, timeout=timeout, env=self.env)
+                actual = os.fstat(stream.fileno()).st_size
+            if result.returncode:
+                detail = result.stderr.decode(errors='replace').strip()[-400:]
+                raise AdbError(f'adb Oodle pull: exec-out exited {result.returncode}: {detail}')
+            if actual != expected:
+                raise AdbError(f'adb Oodle pull: expected {expected} bytes, received {actual}')
+            os.replace(stage, win_path(resolved))
+            stage = None
+        except subprocess.TimeoutExpired as e:
+            raise AdbError(f'adb Oodle pull: timed out after {timeout} s') from e
+        except OSError as e:
+            raise AdbError(f'adb Oodle pull: cannot write {local}: {e}') from e
+        finally:
+            if stage is not None:
+                try: os.unlink(stage)
+                except FileNotFoundError: pass
+                except OSError as e: self.log(f'adb Oodle pull: cannot remove incomplete {stage}: {e}')
 
     # ---- devices ----
     def devices(self):

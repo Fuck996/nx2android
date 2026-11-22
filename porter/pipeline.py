@@ -610,7 +610,7 @@ class Port:
                       f'> job.log 2>&1; echo "exit $?"; grep -a -e DM_OODLE_JOB -e RED job.log | tail -5', timeout=3600)
         (self.logs / 'android_oodle_job.log').write_text(r, encoding='utf-8')
         if 'exit 0' not in r: raise BuildError(f"the game's Oodle decoder on the device failed (see {self.logs / 'android_oodle_job.log'})")
-        adb.run('pull', f'{self.ODEV}/job.bin.out', str(out), timeout=1800)
+        adb.pull_oodle_result(f'{self.ODEV}/job.bin.out', out)
         adb.shell(f'rm -f {self.ODEV}/job.bin {self.ODEV}/job.bin.out', check=False)
 
     # ---- Unreal Engine shader code archives decoded with the game's own Oodle on the device (the Mac does it in decode_ue_shaders) ----

@@ -114,3 +114,10 @@ yourself. The built-in downloader verifies the checksums supplied by the
 vendors. If Windows blocks the final folder rename after extraction, Setup
 uses the completed directory at its existing app-local location and does not
 delete a prior toolchain, so moving it manually is unnecessary.
+
+For decoded Oodle results on Windows, a game folder can contain non-ASCII
+characters. In that case nx2android streams the device output into a temporary
+file **beside the game's build output**, not into the system temporary directory.
+It verifies the transfer length before replacing the result. This does not
+change where other stages keep temporary files or how installation pushes data
+to the device.
