@@ -128,7 +128,7 @@ public class ExternalActivity extends NativeActivity implements ExternalDisplay.
             ArrayList<String> updated = new ArrayList<>();
             ids.clear(); updated.add(UiLocale.text("System default", "系统默认")); ids.add(0);
             for (AudioDeviceInfo device : manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
-                String name = AudioChoices.name(device);
+                String name = AudioChoices.name(device, UiLocale.chinese());
                 if (name != null) { updated.add(name); ids.add(device.getId()); }
             }
             adapter.clear(); adapter.addAll(updated);

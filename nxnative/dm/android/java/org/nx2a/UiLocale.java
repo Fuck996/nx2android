@@ -6,7 +6,7 @@ final class UiLocale {
 
     private UiLocale() {}
 
-    private static native boolean chinese();
+    static native boolean chinese();
 
     static String text(String english, String simplified) {
         return chinese() ? simplified : english;

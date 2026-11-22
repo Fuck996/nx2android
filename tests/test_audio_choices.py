@@ -15,18 +15,20 @@ class AudioChoicesTest(unittest.TestCase):
 }'''
         check = '''package org.nx2a; import android.media.AudioDeviceInfo; public class Check {
  public static void main(String[] args) {
-  if(AudioChoices.name(new AudioDeviceInfo(7,"FreeClip")) != null) throw new AssertionError("call device");
-  if(!"HUAWEI FreeClip".equals(AudioChoices.name(new AudioDeviceInfo(8,"HUAWEI FreeClip")))) throw new AssertionError("media name");
-  if(!"HUAWEI FreeClip".equals(AudioChoices.name(new AudioDeviceInfo(26,"HUAWEI FreeClip")))) throw new AssertionError("BLE name");
-  if(!"Bluetooth audio".equals(AudioChoices.name(new AudioDeviceInfo(8," ")))) throw new AssertionError("empty name");
-  if(!"Phone speaker".equals(AudioChoices.name(new AudioDeviceInfo(2,"speaker")))) throw new AssertionError("speaker");
-  if(!"External audio \\u00B7 Monitor".equals(AudioChoices.name(new AudioDeviceInfo(9,"Monitor")))) throw new AssertionError("HDMI");
+  if(AudioChoices.name(new AudioDeviceInfo(7,"FreeClip"), false) != null) throw new AssertionError("call device");
+  if(!"HUAWEI FreeClip".equals(AudioChoices.name(new AudioDeviceInfo(8,"HUAWEI FreeClip"), false))) throw new AssertionError("media name");
+  if(!"HUAWEI FreeClip".equals(AudioChoices.name(new AudioDeviceInfo(26,"HUAWEI FreeClip"), false))) throw new AssertionError("BLE name");
+  if(!"Bluetooth audio".equals(AudioChoices.name(new AudioDeviceInfo(8," "), false))) throw new AssertionError("empty name");
+  if(!"Phone speaker".equals(AudioChoices.name(new AudioDeviceInfo(2,"speaker"), false))) throw new AssertionError("speaker");
+  if(!"External audio \\u00B7 Monitor".equals(AudioChoices.name(new AudioDeviceInfo(9,"Monitor"), false))) throw new AssertionError("HDMI");
+  if(!"内置扬声器".equals(AudioChoices.name(new AudioDeviceInfo(2,"speaker"), true))) throw new AssertionError("localized speaker");
+  if(!"HUAWEI FreeClip".equals(AudioChoices.name(new AudioDeviceInfo(8,"HUAWEI FreeClip"), true))) throw new AssertionError("unchanged device name");
  }}'''
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             audio = root / 'android/media/AudioDeviceInfo.java'; audio.parent.mkdir(parents=True); audio.write_text(stub)
-            test = root / 'org/nx2a/Check.java'; test.parent.mkdir(parents=True); test.write_text(check)
-            subprocess.run(['javac', '-d', tmp, str(audio), str(SOURCE), str(test)], check=True)
+            test = root / 'org/nx2a/Check.java'; test.parent.mkdir(parents=True); test.write_text(check, encoding='utf-8')
+            subprocess.run(['javac', '-encoding', 'UTF-8', '-d', tmp, str(audio), str(SOURCE), str(test)], check=True)
             subprocess.run(['java', '-cp', tmp, 'org.nx2a.Check'], check=True)
 
 if __name__ == '__main__': unittest.main()
