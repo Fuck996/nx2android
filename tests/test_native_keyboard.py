@@ -28,6 +28,8 @@ class NativeKeyboard(unittest.TestCase):
                 self.assertEqual(args[-1], 'org.nx2a.KeyboardExternalActivity' if external else 'org.nx2a.GameActivity')
                 sources=[str(x) for x in run.call_args_list[0].args[0]]
                 self.assertTrue(any(x.endswith('GameKeyboard.java') for x in sources))
+                self.assertTrue(any(x.endswith('UiLocale.java') for x in sources))
+                self.assertEqual(sources[sources.index('-encoding') + 1], 'UTF-8')
                 self.assertEqual(args[0],'--dex')
         self.assertFalse(pipeline.Options(folder=Path('/game')).native_keyboard)
 

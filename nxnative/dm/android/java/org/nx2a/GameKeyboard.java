@@ -50,12 +50,12 @@ final class GameKeyboard {
                 edit.setText(initial);
                 edit.setSelection(edit.length());
                 AlertDialog current = new AlertDialog.Builder(activity)
-                    .setTitle(title.isEmpty() ? "Input" : title)
+                    .setTitle(title.isEmpty() ? UiLocale.text("Input", "输入文字") : title)
                     .setMessage(subtitle.isEmpty() ? null : subtitle)
                     .setView(edit)
-                    .setPositiveButton(android.R.string.ok, (d, button) ->
+                    .setPositiveButton(UiLocale.text("OK", "确定"), (d, button) ->
                         req.result = edit.getText().toString().getBytes(StandardCharsets.UTF_8))
-                    .setNegativeButton(android.R.string.cancel, null).create();
+                    .setNegativeButton(UiLocale.text("Cancel", "取消"), null).create();
                 current.setOnDismissListener(d -> {
                     if (dialog == current) dialog = null;
                     req.done.countDown();

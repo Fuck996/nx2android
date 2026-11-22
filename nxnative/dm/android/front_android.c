@@ -11,6 +11,7 @@
 #include "dm_input.h"
 #include "pad_slots.h"
 #include "overlay_layout.h"
+#include "overlay_i18n.h"
 #include "stick_axis.h"
 #include "pixel_font.h"
 #include "saves_android.h"
@@ -49,6 +50,13 @@ void front_screen_match(int fps) { (void)fps; }
 
 // ---------------- the app ----------------
 static ANativeActivity *g_act;
+static _Atomic int g_overlay_zh;
+int dm_overlay_zh(void) { return atomic_load(&g_overlay_zh); }
+
+JNIEXPORT jboolean JNICALL Java_org_nx2a_UiLocale_chinese(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    return dm_overlay_zh() ? JNI_TRUE : JNI_FALSE;
+}
 static jmethodID g_audio_menu_method;
 int dm_menu_audio_available(void) { return g_audio_menu_method != NULL; }
 AAssetManager *dm_front_assets(void) { return g_act ? g_act->assetManager : NULL; }   // the APK's assets (overlay_theme.c: the gamepad's theme)
@@ -815,31 +823,31 @@ static void sp_touch(AInputEvent *e, float W, float H) {   // a row is done when
     } else if (act == AMOTION_EVENT_ACTION_CANCEL) g_sp.ptr = -1;
 }
 static void sp_size(char *out, int cap, const dm_save_entry *s) {
-    if (s->bytes >= 1 << 20) snprintf(out, (size_t)cap, "%ld file%s, %.1f MB", s->files, s->files == 1 ? "" : "s", s->bytes / 1048576.0);
-    else snprintf(out, (size_t)cap, "%ld file%s, %lld KB", s->files, s->files == 1 ? "" : "s", (s->bytes + 1023) / 1024);
+    if (s->bytes >= 1 << 20) snprintf(out, (size_t)cap, ov_tr("%ld file%s, %.1f MB"), s->files, dm_overlay_zh() || s->files == 1 ? "" : "s", s->bytes / 1048576.0);
+    else snprintf(out, (size_t)cap, ov_tr("%ld file%s, %lld KB"), s->files, dm_overlay_zh() || s->files == 1 ? "" : "s", (s->bytes + 1023) / 1024);
 }
-#define SP_ROW(i, st, ...) do { rows[i].style = st; snprintf(rows[i].left, sizeof rows[i].left, __VA_ARGS__); } while (0)
+#define SP_ROW(i, st, ...) do { rows[i].style = st; snprintf(rows[i].left, sizeof rows[i].left, __VA_ARGS__); pf_trim(rows[i].left); } while (0)
 int dm_save_rows(ov_srow rows[OVM_ROWS]) {   // (gfx_vk_present.c ov_save_panel)
     if (!atomic_load(&g_sp_on)) return 0;
     memset(rows, 0, sizeof(ov_srow) * OVM_ROWS);
     pthread_mutex_lock(&g_sp_mu);
     if (g_sp.closing) {
-        SP_ROW(0, OVS_TITLE, "Importing the save"); SP_ROW(1, OVS_ITEM, "%s", g_sp.pick.name); sp_size(rows[1].right, sizeof rows[1].right, &g_sp.pick);
-        SP_ROW(2, OVS_NOTE, "The game closes now. Open it again:"); SP_ROW(3, OVS_NOTE, "the save is imported as it starts.");
+        SP_ROW(0, OVS_TITLE, "%s", ov_tr("Importing the save")); SP_ROW(1, OVS_ITEM, "%s", g_sp.pick.name); sp_size(rows[1].right, sizeof rows[1].right, &g_sp.pick);
+        SP_ROW(2, OVS_NOTE, "%s", ov_tr("The game closes now. Open it again:")); SP_ROW(3, OVS_NOTE, "%s", ov_tr("the save is imported as it starts."));
     } else if (g_sp.confirm) {
-        SP_ROW(0, OVS_TITLE, "Import this save?"); SP_ROW(1, OVS_ITEM, "%s", g_sp.pick.name); sp_size(rows[1].right, sizeof rows[1].right, &g_sp.pick);
-        SP_ROW(2, OVS_NOTE, "Your current save is exported first,"); SP_ROW(3, OVS_NOTE, "then the game closes: open it again.");
-        SP_ROW(OVM_ROWS - 2, OVS_BUTTON, "Import and close"); SP_ROW(OVM_ROWS - 1, OVS_BACK, "Cancel");
+        SP_ROW(0, OVS_TITLE, "%s", ov_tr("Import this save?")); SP_ROW(1, OVS_ITEM, "%s", g_sp.pick.name); sp_size(rows[1].right, sizeof rows[1].right, &g_sp.pick);
+        SP_ROW(2, OVS_NOTE, "%s", ov_tr("Your current save is exported first,")); SP_ROW(3, OVS_NOTE, "%s", ov_tr("then the game closes: open it again."));
+        SP_ROW(OVM_ROWS - 2, OVS_BUTTON, "%s", ov_tr("Import and close")); SP_ROW(OVM_ROWS - 1, OVS_BACK, "%s", ov_tr("Cancel"));
     } else {
         int pages = (g_sp.n + SP_PER - 1) / SP_PER, k = sp_on_page();
-        SP_ROW(0, OVS_TITLE, "Import a save"); if (pages > 1) snprintf(rows[0].right, sizeof rows[0].right, "page %d of %d", g_sp.page + 1, pages);
+        SP_ROW(0, OVS_TITLE, "%s", ov_tr("Import a save")); if (pages > 1) snprintf(rows[0].right, sizeof rows[0].right, ov_tr("page %d of %d"), g_sp.page + 1, pages);
         for (int j = 0; j < k; j++) { const dm_save_entry *s = &g_sp.e[g_sp.page * SP_PER + j]; SP_ROW(1 + j, OVS_ITEM, "%s", s->name); sp_size(rows[1 + j].right, sizeof rows[1 + j].right, s); }
         if (!g_sp.n) {
             const char *d = strstr(dm_saves_dir(), "Android/data/");
-            SP_ROW(1, OVS_NOTE, "No saves yet. Export one, or put a save folder"); SP_ROW(2, OVS_NOTE, "(a console's, as its save tools copy it) in");
+            SP_ROW(1, OVS_NOTE, "%s", ov_tr("No saves yet. Export one, or put a save folder")); SP_ROW(2, OVS_NOTE, "%s", ov_tr("(a console's, as its save tools copy it) in"));
             SP_ROW(3, OVS_NOTE, "%s", d ? d : dm_saves_dir());
         }
-        SP_ROW(OVM_ROWS - 1, OVS_BACK, "Back");
+        SP_ROW(OVM_ROWS - 1, OVS_BACK, "%s", ov_tr("Back"));
     }
     pthread_mutex_unlock(&g_sp_mu);
     return 1;
@@ -1024,7 +1032,7 @@ static int overlay_text_input(const char *title, const char *sub, const char *gu
     if (!out || out_cap <= 0) return -1;
     if (!g_act || !dm_front_window()) return -1;   // the adb shell executable, or no window yet: nothing is shown
     pthread_mutex_lock(&g_tx_mu);
-    const char *t = title && *title ? title : guide && *guide ? guide : sub && *sub ? sub : "Enter text";
+    const char *t = title && *title ? title : guide && *guide ? guide : sub && *sub ? sub : ov_tr("Enter text");
     snprintf(g_tx.title, sizeof g_tx.title, "%s", t); pf_trim(g_tx.title);
     g_tx.cap = out_cap - 1 < (int)sizeof g_tx.text - 1 ? out_cap - 1 : (int)sizeof g_tx.text - 1;
     g_tx.n = 0; g_tx.text[0] = 0;
@@ -1419,7 +1427,7 @@ static int romfs_readable(ANativeActivity *act, int sdk) {   // 0: the game cann
 __attribute__((visibility("default"))) void ANativeActivity_onCreate(ANativeActivity *act, void *saved, size_t saved_size) {
     (void)saved; (void)saved_size;
     g_act = act;
-    int sdk; { AConfiguration *cfg = AConfiguration_new(); AConfiguration_fromAssetManager(cfg, act->assetManager); g_dpi = AConfiguration_getDensity(cfg); sdk = AConfiguration_getSdkVersion(cfg); AConfiguration_delete(cfg); }
+    int sdk; char system_lang[3] = {0}; { AConfiguration *cfg = AConfiguration_new(); AConfiguration_fromAssetManager(cfg, act->assetManager); g_dpi = AConfiguration_getDensity(cfg); sdk = AConfiguration_getSdkVersion(cfg); AConfiguration_getLanguage(cfg, system_lang); AConfiguration_delete(cfg); }
     act->callbacks->onNativeWindowCreated = on_window_created; act->callbacks->onNativeWindowDestroyed = on_window_destroyed;
     act->callbacks->onInputQueueCreated = on_queue_created; act->callbacks->onInputQueueDestroyed = on_queue_destroyed;
     act->callbacks->onPause = on_pause; act->callbacks->onResume = on_resume; act->callbacks->onWindowFocusChanged = on_window_focus; act->callbacks->onDestroy = on_destroy;
@@ -1441,6 +1449,7 @@ __attribute__((visibility("default"))) void ANativeActivity_onCreate(ANativeActi
     snprintf(p, sizeof p, "%s/temp", act->internalDataPath); mkdir(p, 0700); setenv("DM_TEMP", p, 0);
     snprintf(p, sizeof p, "%s/shaders.dmsv", g_root); setenv("DM_VK_SHADERS", p, 0);
     snprintf(p, sizeof p, "%s/env.txt", g_root); env_file(p);
+    atomic_store(&g_overlay_zh, ov_locale_zh(getenv("DM_UI_LANG"), getenv("DM_LANG"), system_lang));
     { const char *e = getenv("DM_MENU_BUTTON"); if (e && *e && !atoi(e)) { atomic_store(&g_menu_btn, 0); LOG("[overlay] DM_MENU_BUTTON=0: no menu button (Back opens the menu)"); } }
 #ifdef DM_RELEASE
     unsetenv("DM_CTL");   // a release build takes no remote key presses (the control file is a development tool)

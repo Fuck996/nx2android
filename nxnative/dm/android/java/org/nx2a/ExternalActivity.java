@@ -117,16 +117,16 @@ public class ExternalActivity extends NativeActivity implements ExternalDisplay.
         if (audioDialog != null && audioDialog.isShowing()) return;
         ArrayList<String> names = new ArrayList<>(); ArrayList<Integer> ids = new ArrayList<>();
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_single_choice, names);
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Audio output")
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(UiLocale.text("Audio output", "音频输出"))
             .setSingleChoiceItems(adapter, -1, (d, which) -> {
                 if (which < 0 || which >= ids.size()) return;
                 int id = ids.get(which); d.dismiss(); audioExecutor.execute(() -> externalAudio(id));
             })
-            .setNegativeButton("Cancel", null).create();
+            .setNegativeButton(UiLocale.text("Cancel", "取消"), null).create();
         Runnable refresh = () -> {
             if (!dialog.isShowing()) return;
             ArrayList<String> updated = new ArrayList<>();
-            ids.clear(); updated.add("System default"); ids.add(0);
+            ids.clear(); updated.add(UiLocale.text("System default", "系统默认")); ids.add(0);
             for (AudioDeviceInfo device : manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
                 String name = AudioChoices.name(device);
                 if (name != null) { updated.add(name); ids.add(device.getId()); }
@@ -263,7 +263,7 @@ public class ExternalActivity extends NativeActivity implements ExternalDisplay.
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Map<Integer,Integer> captured = new HashMap<>();
         private final Map<Integer,float[]> points = new HashMap<>();
-        private final String[] labels = {"L", "ZL", "R", "ZR", "−", "+", "L3", "R3", "A", "B", "X", "Y", "✥", "↑", "→", "↓", "MENU", "L", "R", "Audio"};
+        private final String[] labels = {"L", "ZL", "R", "ZR", "−", "+", "L3", "R3", "A", "B", "X", "Y", "✥", "↑", "→", "↓", "MENU", "L", "R", UiLocale.text("Audio", "音频")};
         private final long[] bits = {1L<<6,1L<<8,1L<<7,1L<<9,1L<<11,1L<<10,1L<<4,1L<<5,1L,1L<<1,1L<<2,1L<<3,0,0,0,0,0,0,0,0};
         private final float[] xs = {.20f,.07f,.80f,.93f,.43f,.57f,.28f,.72f,.88f,.82f,.82f,.76f,.25f,.25f,.30f,.25f,.5f,.11f,.65f,.50f};
         private final float[] ys = {.19f,.19f,.19f,.19f,.10f,.10f,.45f,.45f,.62f,.76f,.48f,.62f,.76f,.65f,.76f,.87f,.10f,.57f,.78f,.27f};
