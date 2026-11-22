@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from porter import config
-from porter.paths import LOCAL_TOOLS, player_tools
+from porter.paths import LOCAL_TOOLS, PORTABLE_TOOLS, player_tools
 
 NDK_REVISION = '27.2.12479018'   # r27c: the NDK the Android host is built and tested with
 NDK_RELEASE = 'r27c'
@@ -53,7 +53,7 @@ def find_ndk(cfg=None):
     given = [cfg.get('ndk'), os.environ.get('ANDROID_NDK_HOME'), os.environ.get('ANDROID_NDK_ROOT')]
     for d in filter(None, given):   # an explicit choice is taken as it is, even when it is not r27c (the check says so)
         if ndk_revision(d): return Path(d), ndk_revision(d)
-    found = [Path(p) for t in (LOCAL_TOOLS, player_tools()) for p in glob.glob(str(t / 'android-ndk-*'))] + [p for r in _sdk_roots() for p in sorted((r / 'ndk').glob('*'))] + [r / 'ndk-bundle' for r in _sdk_roots()]
+    found = [Path(p) for t in (LOCAL_TOOLS, PORTABLE_TOOLS, player_tools()) for p in glob.glob(str(t / 'android-ndk-*'))] + [p for r in _sdk_roots() for p in sorted((r / 'ndk').glob('*'))] + [r / 'ndk-bundle' for r in _sdk_roots()]
     found = [(d, ndk_revision(d)) for d in found if ndk_revision(d)]
     if not found: return None, None
     return next((x for x in found if x[1] == NDK_REVISION), found[-1])
@@ -65,7 +65,7 @@ def find_dotnet(cfg=None):
     cfg = cfg if cfg is not None else config.load()
     if cfg.get('dotnet') and Path(cfg['dotnet']).is_file(): return Path(cfg['dotnet'])
     progs = [os.environ.get(k) for k in ('ProgramFiles', 'ProgramW6432')] if os.name == 'nt' else []
-    cands = [os.environ.get('DOTNET_ROOT') and str(Path(os.environ['DOTNET_ROOT']) / f'dotnet{EXE}'), shutil.which('dotnet'), str(LOCAL_TOOLS / 'dotnet' / f'dotnet{EXE}'), str(player_tools() / 'dotnet' / f'dotnet{EXE}'),
+    cands = [os.environ.get('DOTNET_ROOT') and str(Path(os.environ['DOTNET_ROOT']) / f'dotnet{EXE}'), shutil.which('dotnet'), str(PORTABLE_TOOLS / 'dotnet' / f'dotnet{EXE}'), str(LOCAL_TOOLS / 'dotnet' / f'dotnet{EXE}'), str(player_tools() / 'dotnet' / f'dotnet{EXE}'),
              str(Path.home() / '.dotnet' / f'dotnet{EXE}'), *[str(Path(p) / 'dotnet' / f'dotnet{EXE}') for p in progs if p], '/usr/local/share/dotnet/dotnet']
     found = list(dict.fromkeys(Path(c) for c in cands if c and Path(c).is_file()))
     return next((d for d in found if any(int(s.split('.')[0]) >= DOTNET_MAJOR for s in dotnet_sdks(d))), found[0] if found else None)
@@ -90,7 +90,7 @@ def find_turnip(cfg=None):
     if cfg and cfg.get('turnip'):
         p = Path(cfg['turnip']).expanduser()
         return p if p.is_file() else None
-    for t in (LOCAL_TOOLS, player_tools()):
+    for t in (LOCAL_TOOLS, PORTABLE_TOOLS, player_tools()):
         hits = sorted(glob.glob(str(t / 'turnip' / '**' / 'libvulkan_freedreno.so'), recursive=True))
         if hits: return Path(hits[0])
     return None
@@ -98,7 +98,7 @@ def find_turnip(cfg=None):
 
 def find_adb(cfg=None):
     cfg = cfg if cfg is not None else config.load()
-    for c in [cfg.get('adb'), shutil.which('adb'), *[str(r / 'platform-tools' / f'adb{EXE}') for r in _sdk_roots()], str(LOCAL_TOOLS / 'platform-tools' / f'adb{EXE}'), str(player_tools() / 'platform-tools' / f'adb{EXE}')]:
+    for c in [cfg.get('adb'), shutil.which('adb'), *[str(r / 'platform-tools' / f'adb{EXE}') for r in _sdk_roots()], str(PORTABLE_TOOLS / 'platform-tools' / f'adb{EXE}'), str(LOCAL_TOOLS / 'platform-tools' / f'adb{EXE}'), str(player_tools() / 'platform-tools' / f'adb{EXE}')]:
         if c and Path(c).is_file(): return Path(c)
     return None
 

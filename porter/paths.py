@@ -3,7 +3,8 @@ import os, shutil, sys
 from pathlib import Path
 
 REPO = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent   # the bundle: nxnative/ beside nx2android.exe
-LOCAL_TOOLS = REPO / 'tools'   # a developer's toolchains next to the repository (not committed); the player installs their own
+LOCAL_TOOLS = REPO / 'tools'   # a developer's toolchains next to the repository (not committed)
+PORTABLE_TOOLS = REPO / 'toolchains'   # optional user-supplied sidecar beside the application
 
 
 def user_dir():

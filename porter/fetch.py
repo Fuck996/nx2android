@@ -2,7 +2,7 @@
 # platform-tools from Google's SDK repository, the newest .NET SDK 10 from Microsoft's release list. Each archive is checked against the checksum its list gives,
 # then unpacked into the player's nx2android folder (paths.player_tools()), where toolchain.find_* look, and the settings point at it. The tool ships none of them:
 # they come from their makers, under their licenses (LICENSES).
-import hashlib, json, os, platform, shutil, stat, sys, tarfile, urllib.request, xml.etree.ElementTree as ET, zipfile
+import hashlib, json, os, platform, shutil, stat, sys, tarfile, tempfile, urllib.request, xml.etree.ElementTree as ET, zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,6 +15,7 @@ GOOGLE_INDEX = GOOGLE + 'repository2-3.xml'   # what sdkmanager reads: every pac
 DOTNET_INDEX = f'https://builds.dotnet.microsoft.com/dotnet/release-metadata/{toolchain.DOTNET_MAJOR}.0/releases.json'   # every release's files with SHA-512
 LICENSES = {'Android NDK': 'https://developer.android.com/studio/terms', 'adb': 'https://developer.android.com/studio/terms',
             '.NET SDK': 'https://github.com/dotnet/core/blob/main/license-information.md'}
+WINDOWS = os.name == 'nt'
 NDK_PACKAGE = f'ndk;{toolchain.NDK_REVISION}'
 UNPACKED = {'Android NDK': 2.6 * 2**30, '.NET SDK': 0.9 * 2**30, 'adb': 0.05 * 2**30}   # disk space unpacked (r27c on Windows: 2.5 GB), for the free-space check
 
@@ -122,15 +123,33 @@ def _untar(arc, into):
 
 def _install(it, arc):
     """Unpack arc into player_tools()/it.folder: an archive with one top folder (the NDK, platform-tools) gives that folder, one without (.NET) is the folder"""
-    root = player_tools(); tmp = root / f'.{it.folder}.unpack'
-    shutil.rmtree(tmp, ignore_errors=True); tmp.mkdir(parents=True)
-    (_unzip if arc.suffix == '.zip' else _untar)(arc, tmp)
-    top = list(tmp.iterdir())
-    src = top[0] if len(top) == 1 and top[0].is_dir() and it.folder != 'dotnet' else tmp
-    dest = root / it.folder
-    shutil.rmtree(dest, ignore_errors=True); src.replace(dest)
-    shutil.rmtree(tmp, ignore_errors=True)
-    return dest
+    root = player_tools()
+    # Unique per attempt: an incomplete extraction is never a configured tool, nor is
+    # a prior completed install removed when replacing it for this user.
+    tmp = Path(tempfile.mkdtemp(prefix=f'.{it.folder}-', dir=root))
+    try:
+        (_unzip if arc.suffix == '.zip' else _untar)(arc, tmp)
+        top = list(tmp.iterdir())
+        src = top[0] if len(top) == 1 and top[0].is_dir() and it.folder != 'dotnet' else tmp
+        dest = root / it.folder
+        if not os.path.lexists(dest):
+            try:
+                # On Windows the completed directory can still be temporarily locked.
+                # Rename only; never use replace to clobber an existing installation.
+                if WINDOWS:
+                    src.rename(dest)
+                    shutil.rmtree(tmp, ignore_errors=True)
+                    return dest
+            except OSError as e:
+                if not (isinstance(e, (PermissionError, FileExistsError)) or getattr(e, 'winerror', None) in (5, 32, 183)):
+                    raise
+        # Keep the already verified, fully extracted tree in place. Nothing else has
+        # written to this path, so using it is safer than deleting or copying an old
+        # toolchain and costs no extra disk space. The caller persists the exact path.
+        return src
+    except Exception:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
 
 
 def download(items):
@@ -142,10 +161,10 @@ def download(items):
     keys = {'Android NDK': ('ndk', ''), '.NET SDK': ('dotnet', f'dotnet{toolchain.EXE}'), 'adb': ('adb', f'adb{toolchain.EXE}')}
     for it in items:
         PROG.stage(f'{it.name} {it.version}', step='downloading')
-        arc = root / Path(it.url).name
-        try:
+        # Give simultaneous setup processes separate archive and .part paths.
+        with tempfile.TemporaryDirectory(prefix='.download-', dir=root) as work:
+            arc = Path(work) / Path(it.url).name
             _download(it, arc); dest = _install(it, arc)
-        finally: arc.unlink(missing_ok=True)
         key, exe = keys[it.name]
         config.set_value(key, str(dest / exe) if exe else str(dest))
         PROG.end(str(dest))

@@ -84,3 +84,33 @@ The log at the bottom of the Port tab says why; lines in red are errors. Ask on 
 **A touch game does not take some touches.** The on-screen gamepad takes the touches on its buttons and sticks and near them, at the sides of the screen. Open the pause menu (the button at the top centre) and turn the gamepad off: every touch then goes to the game, except a touch on the menu button. For a new port, tick **Touch game** on the Port tab (`--touch`): the gamepad starts hidden. If the game still takes no touch, choose handheld mode in the pause menu: some games read touches only in handheld mode, as on the Switch.
 
 The command line is the same program: `nx2android.exe -m porter -h` (`./nx2android -m porter -h` on a Mac or Linux).
+
+### Portable/offline toolchains
+
+The release already includes its Python runtime and Python modules. If you
+have valid SDKs installed, Setup reuses them; it downloads only tools that
+fail the setup check. To prepare an offline copy, unzip **your own official
+vendor downloads** next to the extracted nx2android application, preserving
+the vendor files, notices, and directory layout:
+
+```text
+nx2android.exe
+toolchains/
+  android-ndk-r27c/source.properties
+  dotnet/dotnet.exe
+  dotnet/sdk/10.0.<patch>/
+  platform-tools/adb.exe
+```
+
+NDK r27c is revision 27.2.12479018; a .NET runtime alone is not an SDK.
+ADB is optional for packaging, but needed for installing and for games
+that use the connected device during a port. Setup still honors explicitly
+configured paths. The portable folder is read, never modified by Setup.
+
+No SDK packages are redistributed with this release. If you do not already
+have them, use **Download missing tools** in Setup and review the vendor
+licenses there, or download the official packages from Google and Microsoft
+yourself. The built-in downloader verifies the checksums supplied by the
+vendors. If Windows blocks the final folder rename after extraction, Setup
+uses the completed directory at its existing app-local location and does not
+delete a prior toolchain, so moving it manually is unnecessary.
